@@ -424,13 +424,9 @@ template <class Conv2DType> OutputSize infer_conv2d_type(const Conv2DType *node)
   auto ker_shape = luci::shape_get(node->filter()).template as<loco::TensorShape>();
   assert(ifm_shape.rank() == 4);
   assert(ker_shape.rank() == 4);
-  assert(ifm_shape.dim(1).known());
-  assert(ifm_shape.dim(2).known());
   assert(ker_shape.dim(1).known());
   assert(ker_shape.dim(2).known());
 
-  uint32_t input_height = ifm_shape.dim(1).value();
-  uint32_t input_width = ifm_shape.dim(2).value();
   uint32_t stride_height = node->stride()->h();
   uint32_t stride_width = node->stride()->w();
   uint32_t ker_height = ker_shape.dim(1).value();
@@ -443,17 +439,32 @@ template <class Conv2DType> OutputSize infer_conv2d_type(const Conv2DType *node)
   uint32_t output_height = 0;
   uint32_t output_width = 0;
 
+  const auto input_height_dim = ifm_shape.dim(1);
+  const auto input_width_dim = ifm_shape.dim(2);
+
   if (node->padding() == luci::Padding::VALID)
   {
-    LUCI_ASSERT(input_height + stride_height > effective_ker_height, "Invalid shape");
-    LUCI_ASSERT(input_width + stride_width > effective_ker_width, "Invalid shape");
-    output_height = (input_height + stride_height - effective_ker_height) / stride_height;
-    output_width = (input_width + stride_width - effective_ker_width) / stride_width;
+    if(input_height_dim.known())
+    {
+      LUCI_ASSERT(input_height_dim.value() + stride_height > effective_ker_height, "Invalid shape");
+      output_height = (input_height_dim.value() + stride_height - effective_ker_height) / stride_height;
+    }
+    if(input_width_dim.known())
+    {
+      LUCI_ASSERT(input_width_dim.value() + stride_width > effective_ker_width, "Invalid shape");
+      output_width = (input_width_dim.value() + stride_width - effective_ker_width) / stride_width;
+    }
   }
   else if (node->padding() == luci::Padding::SAME)
   {
-    output_height = (input_height + stride_height - 1) / stride_height;
-    output_width = (input_width + stride_width - 1) / stride_width;
+    if(input_height_dim.known())
+    {
+      output_height = (input_height_dim.value() + stride_height - 1) / stride_height;
+    }
+    if(input_width_dim.known())
+    {
+      output_width = (input_width_dim.value() + stride_width - 1) / stride_width;
+    }
   }
   else
     LUCI_ASSERT(false, "Wrong padding type");
